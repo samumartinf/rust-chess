@@ -1,4 +1,4 @@
-use std::{collections::{HashMap}};
+use std::{collections::{HashMap}, vec};
 use color_eyre::eyre::Result;
 
 const PIECE_BIT:u8 = 128u8;
@@ -27,10 +27,14 @@ fn main() -> Result<()>{
     board.update_hashmap();
 
     let pos_string:String = String::from("a2");
-    let position = positionHelper::letter_to_position_byte(pos_string);
-    let pos_letter =  positionHelper::position_byte_to_letter(position);
+    let position = position_helper::letter_to_position_byte(pos_string);
+    let pos_letter =  position_helper::position_byte_to_letter(position);
     let white_pawn = Piece::init_from_binary(PIECE_BIT+WHITE_BIT+PAWN_BIT);
-    let possible_positions: Vec<String> = white_pawn.possible_moves(position, &board).iter().map(|x| positionHelper::position_byte_to_letter(*x)).collect();
+    let white_rook = Piece::init_from_binary(PIECE_BIT+WHITE_BIT+ROOK);
+    let mut possible_positions: Vec<String> = white_rook.possible_moves(position, &board).iter()
+        .map(|x| position_helper::position_byte_to_letter(*x))
+        .collect();
+    possible_positions.sort();
 
     let mut game = Game{white_turn: true, moves_done: Vec::new(), board: &board, game_done:false};
 
@@ -78,8 +82,8 @@ impl Piece {
         if self.is_white {
             possible_positions.push(position - 16);
 
-            println!("The row of the pawn is identified as {}", positionHelper::get_row(position));
-            if positionHelper::get_row(position) == 6 { 
+            println!("The row of the pawn is identified as {}", position_helper::get_row(position));
+            if position_helper::get_row(position) == 6 { 
                 possible_positions.push(position - 32);
             }
         }
@@ -87,7 +91,7 @@ impl Piece {
         // Black paws move in the positive direction
         else {
             possible_positions.push(position + 16);
-            if positionHelper::get_row(position) == 1 {
+            if position_helper::get_row(position) == 1 {
                 possible_positions.push(position + 32);
             }
         }
@@ -95,14 +99,14 @@ impl Piece {
         let mut final_positions = Vec::new();
         for pos in possible_positions {
             println!("{}", pos);
-            if positionHelper::validate_position(pos) {
+            if position_helper::validate_position(pos) {
                 final_positions.push(pos);
             }
         }
 
         //Handle taking pieces
         let piece1 = board.pieces.get(&(position + ROW + COL));
-        let piece2 = board.pieces.get(&(position + ROW - COL));
+        let _piece2 = board.pieces.get(&(position + ROW - COL));
         if piece1.is_some() { 
             println!("There do be a piece here");    
         }
@@ -110,32 +114,64 @@ impl Piece {
         final_positions
     }
 
-    fn king_moves(self, position:u8, board:Board) -> Vec<u8> {
-        let mut possible_positions = Vec::new();
-
-        possible_positions.push(position+1);
-        possible_positions.push(position-1);
-        possible_positions.push(position+16);
-        possible_positions.push(position-16);
-        possible_positions.push(position+16+1);
-        possible_positions.push(position+16-1);
-        possible_positions.push(position-16+1);
-        possible_positions.push(position-16-1);
+    fn king_moves(self, position:u8, _board:Board) -> Vec<u8> {
+        let mut possible_positions = vec![
+            position+1,
+            position-1,
+            position+16,
+            position-16,
+            position+16+1,
+            position+16-1,
+            position-16+1,
+            position-16-1,
+        ];
 
         let mut final_positions: Vec<u8> = Vec::new();
         for pos in possible_positions {
-            if positionHelper::validate_position(pos) {
+            if position_helper::validate_position(pos) {
                 final_positions.push(pos);
             }
         }
 
+        final_positions
+    }
+
+    fn rook_moves(self, position:u8, board: Board) -> Vec<u8> {
+        let mut possible_positions = Vec::<u8>::new();
+        let row = position_helper::get_row(position); 
+        let col = position_helper::get_col(position);
+    
+        // move up, down, left, and right from the current position
+        for i in 1..8 {
+            if col + i < 8 { // check right boundary
+                possible_positions.push(position + i);
+            }
+            if i <= col { // check left boundary
+                possible_positions.push(position - i);
+            }
+            if row + i < 8 { // check lower boundary
+                possible_positions.push(position + ROW*i);
+            }
+            if i <= row { // check upper boundary
+                possible_positions.push(position - ROW*i);
+            }
+        }
+    
+        let mut final_positions = Vec::new();
+        for pos in possible_positions {
+            if position_helper::validate_position(pos) {
+                final_positions.push(pos);
+            }
+        }
+    
         return final_positions;
     }
+    
 
 }
 
 impl BasicPiece for Piece {
-    fn is_move_valid(&self, position:u8, board: Board) -> bool {
+    fn is_move_valid(&self, _position:u8, _board: Board) -> bool {
         true
     }
 
@@ -144,13 +180,13 @@ impl BasicPiece for Piece {
         match self.class {
             PieceType::Pawn => possible_positions = Piece::pawn_moves(self.clone(), position, board.clone()),
             PieceType::King => possible_positions = Piece::king_moves(self.clone(), position, board.clone()),
-            PieceType::Bishop => possible_positions.push(positionHelper::letter_to_position_byte(String::from("e4"))),
-            PieceType::Queen => possible_positions.push(positionHelper::letter_to_position_byte(String::from("e4"))),
-            PieceType::Rook=> possible_positions.push(positionHelper::letter_to_position_byte(String::from("e4"))),
-            PieceType::Knight=> possible_positions.push(positionHelper::letter_to_position_byte(String::from("e4"))),
+            PieceType::Bishop => possible_positions.push(position_helper::letter_to_position_byte(String::from("e4"))),
+            PieceType::Queen => possible_positions.push(position_helper::letter_to_position_byte(String::from("e4"))),
+            PieceType::Rook=> possible_positions = Piece::rook_moves(self.clone(), position, board.clone()),
+            PieceType::Knight=> possible_positions.push(position_helper::letter_to_position_byte(String::from("e4"))),
         }
 
-        return possible_positions;
+        possible_positions
     }
 
     fn init_from_binary(binary: u8) -> Self {
@@ -168,7 +204,7 @@ impl BasicPiece for Piece {
             _ => panic!("This piece does not exist!. The binary is {}", binary),
         };
         
-        Self { binary: binary, is_white: is_white, class: piece_type}
+        Self { binary, is_white, class: piece_type}
     }
 
     fn text_repr(&self) -> String {
@@ -192,7 +228,7 @@ impl BasicPiece for Piece {
         };
         return_string.push_str(&color_string);
         return_string.push_str(&piece_string);
-        return return_string;
+        return_string
     }
 }
 
@@ -240,7 +276,7 @@ impl Board {
 
     fn init() -> Self { 
         let mut state = [0u8; 64];
-        let mut pieces:HashMap<u8, u8> = HashMap::new();
+        let pieces:HashMap<u8, u8> = HashMap::new();
 
         
         // black pawns
@@ -258,7 +294,7 @@ impl Board {
         }
 
         // white large pieces
-        state[0+56] = ROOK + PIECE_BIT + WHITE_BIT;
+        state[56] = ROOK + PIECE_BIT + WHITE_BIT;
         state[1+56] = KNIGHT + PIECE_BIT + WHITE_BIT;
         state[2+56] = BISHOP + PIECE_BIT + WHITE_BIT;
         state[3+56] = QUEEN + PIECE_BIT + WHITE_BIT;
@@ -279,13 +315,13 @@ impl Board {
 
 
         // Populate hashmap -> done in the update_hashmap
-        Self { pieces: pieces, state: state }
+        Self { pieces, state }
     }
 
     fn update_hashmap(&mut self) {
         for index in 0..self.state.len() {
             if self.state[index] != 0 {
-                let pos_byte = positionHelper::index_to_position_byte(index);
+                let pos_byte = position_helper::index_to_position_byte(index);
                 self.pieces.insert(pos_byte, self.state[index]);
             }
         }
@@ -293,7 +329,7 @@ impl Board {
 }
 
 
-pub mod positionHelper {
+pub mod position_helper {
     pub fn position_byte_to_index(byte: u8) -> usize {
         let row_selector:u8 = 0b11110000;
         let col_selector:u8 = 0b00001111;
@@ -320,8 +356,8 @@ pub mod positionHelper {
         
         let mut return_string = String::from("");
         
-        let letter_char = ('a' as u8 + col) as char;
-        let num_char = ('8' as u8 - row) as char;
+        let letter_char = (b'a' + col) as char;
+        let num_char = (b'8' - row) as char;
 
         return_string.push(letter_char);
         return_string.push(num_char);
@@ -329,11 +365,11 @@ pub mod positionHelper {
     }
 
     pub fn letter_to_position_byte(letters: String) -> u8{
-        let mut letters_copy = letters.clone();
+        let mut letters_copy = letters;
         let num_char = letters_copy.pop().unwrap();
         let letter_char = letters_copy.pop().unwrap();
-        let row = 7 - (num_char as u8 - '1' as u8);
-        let col = letter_char as u8 - 'a' as u8;
+        let row = 7 - (num_char as u8 - b'1');
+        let col = letter_char as u8 - b'a';
         (row << 4) | col
     }
 
@@ -359,17 +395,18 @@ pub mod positionHelper {
             return false;
         }
 
-        return true;
+        true
     }
 }
 #[cfg(test)]
 mod tests {
-    use crate::{Board, Piece, BasicPiece, PIECE_BIT, QUEEN, PAWN_BIT, WHITE_BIT, positionHelper, KING};
+    use std::collections::HashSet;
+    use crate::{Board, Piece, BasicPiece, PIECE_BIT, QUEEN, PAWN_BIT, WHITE_BIT, position_helper, KING, ROOK};
 
     #[test]
     fn test_index_to_letters() {
-        let pos_byte = positionHelper::index_to_position_byte(3); // 3 = Black Queen
-        let cell = positionHelper::position_byte_to_letter(pos_byte);
+        let pos_byte = position_helper::index_to_position_byte(3); // 3 = Black Queen
+        let cell = position_helper::position_byte_to_letter(pos_byte);
         assert_eq!(pos_byte, 0b00000011);
         assert_eq!(cell, "d8");
     }
@@ -377,9 +414,9 @@ mod tests {
     #[test]
     fn test_letters_to_index() {
         let cell = String::from("d8");
-        let pos_byte = positionHelper::letter_to_position_byte(cell);
+        let pos_byte = position_helper::letter_to_position_byte(cell);
         println!("The position byte returned is {}", pos_byte);
-        let index = positionHelper::position_byte_to_index(pos_byte);
+        let index = position_helper::position_byte_to_index(pos_byte);
         assert_eq!(pos_byte, 0b00000011);
         assert_eq!(index, 3);
     }
@@ -394,13 +431,13 @@ mod tests {
 
     #[test]
     fn test_pawn_initial_move() {
-        let mut board = Board::init();
+        let board = Board::init();
         let pos_string:String = String::from("a2");
-        let position = positionHelper::letter_to_position_byte(pos_string);
+        let position = position_helper::letter_to_position_byte(pos_string);
         let white_pawn = Piece::init_from_binary(PIECE_BIT+WHITE_BIT+PAWN_BIT);
         let possible_positions: Vec<String> = white_pawn.possible_moves(position, &board)
         .iter()
-        .map(|x| positionHelper::position_byte_to_letter(*x))
+        .map(|x| position_helper::position_byte_to_letter(*x))
         .collect();
         assert_eq!(possible_positions, vec!["a3", "a4"]);
     }
@@ -409,15 +446,32 @@ mod tests {
     fn test_king_moves() {
         let board = Board::init();
         let pos_string:String = String::from("a1");
-        let position = positionHelper::letter_to_position_byte(pos_string);
+        let position = position_helper::letter_to_position_byte(pos_string);
         let king = Piece::init_from_binary(PIECE_BIT+WHITE_BIT+KING);
         let mut possible_positions: Vec<String> = king.possible_moves(position, &board)
         .iter()
-        .map(|x| positionHelper::position_byte_to_letter(*x))
+        .map(|x| position_helper::position_byte_to_letter(*x))
         .collect();
         possible_positions.sort();
         println!("The positions output for the King are: {:?}", possible_positions);
         assert_eq!(possible_positions, vec!["a2", "b1", "b2"]);
     }
 
+    #[test]
+    fn test_rook_moves() {
+        let board = Board::init();
+        let pos_string:String = String::from("d4");
+        let position = position_helper::letter_to_position_byte(pos_string.clone());
+        let rook = Piece::init_from_binary(PIECE_BIT+WHITE_BIT+ROOK);
+        let possible_positions: HashSet<String> = rook.possible_moves(position, &board)
+        .iter()
+        .map(|x| position_helper::position_byte_to_letter(*x))
+        .collect();
+        println!("The positions from {} for the rook are: {:?}", pos_string, possible_positions);
+        let correct_position: HashSet<String> = HashSet::from(["a4", "b4", "c4", "d1", "d2", "d3", "d5", "d6", "d7", "d8", "e4", "f4", "g4", "h4"]
+            .iter()
+            .map(|&x| String::from(x))
+            .collect::<HashSet<String>>());
+        assert_eq!(possible_positions, correct_position);
+    }
 }
