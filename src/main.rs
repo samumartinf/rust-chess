@@ -1,4 +1,4 @@
-use std::{collections::{HashMap}, vec};
+use std::{collections::HashMap, vec};
 use color_eyre::eyre::Result;
 
 const PIECE_BIT:u8 = 128u8;
@@ -26,6 +26,8 @@ fn main() -> Result<()>{
     let mut board: Board = Board::init();
     board.update_hashmap();
 
+    let game = Game::init();
+
     let pos_string:String = String::from("a2");
     let position = position_helper::letter_to_position_byte(pos_string);
     let pos_letter =  position_helper::position_byte_to_letter(position);
@@ -36,24 +38,37 @@ fn main() -> Result<()>{
         .collect();
     possible_positions.sort();
 
-    let mut game = Game{white_turn: true, moves_done: Vec::new(), board: &board, game_done:false};
-
-    while !game.game_done {
-        game.board.show();
-        game.white_turn = !game.white_turn;
-        game.game_done = true;
-    }
-    print!("The possible positions for the pawn at {} are {:?}", pos_letter, possible_positions);
+    let mut game = Game{white_turn: true, moves_done: Vec::new(), board: board, game_done:false};
+    
+    print!("The possible positions for the rook at {} are {:?}", pos_letter, possible_positions);
 
     Ok(())
 }
 
 
-struct Game<'a> {
+struct Game{
     white_turn: bool, 
     moves_done: Vec<u32>,
-    board: &'a Board,
+    board: Board,
     game_done: bool,
+}
+
+impl Game {
+    fn init() -> Game {
+        let mut board = Board::init();
+        board.update_hashmap();
+        Game { white_turn: true, moves_done: vec![], board: board, game_done: false }
+    }
+
+    fn play() -> () {
+        loop {
+            
+        }
+    }
+
+    fn play_move(self, piece_to_move: u8, final_position: u8) {
+        
+    }
 }
 
 
@@ -115,15 +130,15 @@ impl Piece {
     }
 
     fn king_moves(self, position:u8, _board:Board) -> Vec<u8> {
-        let mut possible_positions = vec![
-            position+1,
-            position-1,
-            position+16,
-            position-16,
-            position+16+1,
-            position+16-1,
-            position-16+1,
-            position-16-1,
+        let possible_positions = vec![
+            position+COL,
+            position-COL,
+            position+ROW,
+            position-ROW,
+            position+ROW+COL,
+            position+ROW-COL,
+            position-ROW+COL,
+            position-ROW-COL,
         ];
 
         let mut final_positions: Vec<u8> = Vec::new();
@@ -166,12 +181,110 @@ impl Piece {
     
         return final_positions;
     }
-    
+
+    fn queen_moves(self, position:u8, board: Board) -> Vec<u8> {
+        let mut possible_positions = Vec::<u8>::new();
+        let row = position_helper::get_row(position);
+        let col = position_helper::get_col(position);
+
+        for i in 1..8 {
+            if col + i < 8 {
+                if row + i < 8 {
+                    possible_positions.push(position + i + ROW*i);
+                    possible_positions.push(position + ROW*i);
+                }
+                if i <= row {
+                    possible_positions.push(position + i - ROW*i);
+                    possible_positions.push(position - ROW*i);
+                }
+                possible_positions.push(position + i);
+            }
+            if i <= col {
+                if row + i < 8 {
+                    possible_positions.push(position - i + ROW*i);
+                    possible_positions.push(position - ROW*i);
+                }
+                if i <= row {
+                    possible_positions.push(position - i - ROW*i);
+                    possible_positions.push(position - ROW*i);
+                }
+                possible_positions.push(position - i);
+            }
+        }
+
+        let mut final_positions = Vec::new();
+        for pos in possible_positions {
+            if position_helper::validate_position(pos) {
+                final_positions.push(pos);
+            }
+        }
+
+        return final_positions;
+
+    }
+
+    fn bishop_moves(self, position:u8, board: Board) -> Vec<u8> {
+
+        let mut possible_positions = Vec::<u8>::new();
+        let row = position_helper::get_row(position);
+        let col = position_helper::get_col(position);
+
+        for i in 1..8 {
+            if col + i < 8 {
+                if row + i < 8 {
+                    possible_positions.push(position + i + ROW*i);
+                }
+                if i <= row {
+                    possible_positions.push(position + i - ROW*i);
+                }
+            }
+            if i <= col {
+                if row + i < 8 {
+                    possible_positions.push(position - i + ROW*i);
+                }
+                if i <= row {
+                    possible_positions.push(position - i - ROW*i);
+                }
+            }
+        }
+
+        let mut final_positions = Vec::new();
+        for pos in possible_positions {
+            if position_helper::validate_position(pos) {
+                final_positions.push(pos);
+            }
+        }
+
+        return final_positions;
+    }
+
+     fn knight_moves(self, position:u8, board: Board) -> Vec<u8> {
+        let possible_positions = vec![
+            position+COL+2*ROW,
+            position-COL+2*ROW,
+            position+COL-2*ROW,
+            position-COL-2*ROW,
+            position+ROW+2*COL,
+            position+ROW-2*COL,
+            position-ROW+2*COL,
+            position-ROW-2*COL,
+        ];
+
+        let mut final_positions = Vec::new();
+        for pos in possible_positions {
+            if position_helper::validate_position(pos) {
+                final_positions.push(pos);
+            }
+        }
+
+        return final_positions;
+    }   
 
 }
 
 impl BasicPiece for Piece {
     fn is_move_valid(&self, _position:u8, _board: Board) -> bool {
+        //TODO: Is this still required? if so implement
         true
     }
 
@@ -180,10 +293,10 @@ impl BasicPiece for Piece {
         match self.class {
             PieceType::Pawn => possible_positions = Piece::pawn_moves(self.clone(), position, board.clone()),
             PieceType::King => possible_positions = Piece::king_moves(self.clone(), position, board.clone()),
-            PieceType::Bishop => possible_positions.push(position_helper::letter_to_position_byte(String::from("e4"))),
-            PieceType::Queen => possible_positions.push(position_helper::letter_to_position_byte(String::from("e4"))),
+            PieceType::Bishop => possible_positions = Piece::bishop_moves(self.clone(), position, board.clone()),
+            PieceType::Queen => possible_positions = Piece::queen_moves(self.clone(), position, board.clone()),
             PieceType::Rook=> possible_positions = Piece::rook_moves(self.clone(), position, board.clone()),
-            PieceType::Knight=> possible_positions.push(position_helper::letter_to_position_byte(String::from("e4"))),
+            PieceType::Knight=> possible_positions = Piece::knight_moves(self.clone(), position, board.clone())
         }
 
         possible_positions
@@ -401,7 +514,7 @@ pub mod position_helper {
 #[cfg(test)]
 mod tests {
     use std::collections::HashSet;
-    use crate::{Board, Piece, BasicPiece, PIECE_BIT, QUEEN, PAWN_BIT, WHITE_BIT, position_helper, KING, ROOK};
+    use crate::{Board, Piece, BasicPiece, PIECE_BIT, QUEEN, PAWN_BIT, WHITE_BIT, position_helper, KING, ROOK, BISHOP, KNIGHT};
 
     #[test]
     fn test_index_to_letters() {
@@ -469,6 +582,60 @@ mod tests {
         .collect();
         println!("The positions from {} for the rook are: {:?}", pos_string, possible_positions);
         let correct_position: HashSet<String> = HashSet::from(["a4", "b4", "c4", "d1", "d2", "d3", "d5", "d6", "d7", "d8", "e4", "f4", "g4", "h4"]
+            .iter()
+            .map(|&x| String::from(x))
+            .collect::<HashSet<String>>());
+        assert_eq!(possible_positions, correct_position);
+    }
+
+    #[test]
+    fn test_bishop_moves() {
+        let board = Board::init();
+        let pos_string:String = String::from("d4");
+        let position = position_helper::letter_to_position_byte(pos_string.clone());
+        let bishop = Piece::init_from_binary(PIECE_BIT+WHITE_BIT+BISHOP);
+        let possible_positions: HashSet<String> = bishop.possible_moves(position, &board)
+        .iter()
+        .map(|x| position_helper::position_byte_to_letter(*x))
+        .collect();
+        println!("The positions from {} for the bishop are: {:?}", pos_string, possible_positions);
+        let correct_position: HashSet<String> = HashSet::from(["a1", "a7", "b2", "b6", "c3", "c5", "e3", "e5", "f2", "f6", "g1", "g7", "h8"]
+            .iter()
+            .map(|&x| String::from(x))
+            .collect::<HashSet<String>>());
+        assert_eq!(possible_positions, correct_position);
+    }
+
+    #[test]
+    fn test_queen_moves() {
+        let board = Board::init();
+        let pos_string:String = String::from("d4");
+        let position = position_helper::letter_to_position_byte(pos_string.clone());
+        let queen = Piece::init_from_binary(PIECE_BIT+WHITE_BIT+QUEEN);
+        let possible_positions: HashSet<String> = queen.possible_moves(position, &board)
+        .iter()
+        .map(|x| position_helper::position_byte_to_letter(*x))
+        .collect();
+        println!("The positions from {} for the queen are: {:?}", pos_string, possible_positions);
+        let correct_position: HashSet<String> = HashSet::from(["a1", "a4", "a7", "b2", "b4", "b6", "c3", "c4", "c5", "d1", "d2", "d3", "d5", "d6", "d7", "d8", "e3", "e4", "e5", "f2", "f4", "f6", "g1", "g4", "g7", "h4", "h8"]
+            .iter()
+            .map(|&x| String::from(x))
+            .collect::<HashSet<String>>());
+        assert_eq!(possible_positions, correct_position);
+    }
+
+    #[test]
+    fn test_knight_moves() {
+        let board = Board::init();
+        let pos_string:String = String::from("d4");
+        let position = position_helper::letter_to_position_byte(pos_string.clone());
+        let knight = Piece::init_from_binary(PIECE_BIT+WHITE_BIT+KNIGHT);
+        let possible_positions: HashSet<String> = knight.possible_moves(position, &board)
+        .iter()
+        .map(|x| position_helper::position_byte_to_letter(*x))
+        .collect();
+        println!("The positions from {} for the knight are: {:?}", pos_string, possible_positions);
+        let correct_position: HashSet<String> = HashSet::from(["b3", "b5", "c2", "c6", "e2", "e6", "f3", "f5"]
             .iter()
             .map(|&x| String::from(x))
             .collect::<HashSet<String>>());
