@@ -1,5 +1,5 @@
-use std::{collections::HashMap, vec};
-use color_eyre::eyre::Result;
+use std::{collections::HashMap, vec, io};
+use color_eyre::{eyre::Result};
 
 const PIECE_BIT:u8 = 128u8;
 const WHITE_BIT:u8 = 64u8;
@@ -26,21 +26,9 @@ fn main() -> Result<()>{
     let mut board: Board = Board::init();
     board.update_hashmap();
 
-    let game = Game::init();
+    let mut game = Game::init();
 
-    let pos_string:String = String::from("a2");
-    let position = position_helper::letter_to_position_byte(pos_string);
-    let pos_letter =  position_helper::position_byte_to_letter(position);
-    let white_pawn = Piece::init_from_binary(PIECE_BIT+WHITE_BIT+PAWN_BIT);
-    let white_rook = Piece::init_from_binary(PIECE_BIT+WHITE_BIT+ROOK);
-    let mut possible_positions: Vec<String> = white_rook.possible_moves(position, &board).iter()
-        .map(|x| position_helper::position_byte_to_letter(*x))
-        .collect();
-    possible_positions.sort();
-
-    let mut game = Game{white_turn: true, moves_done: Vec::new(), board: board, game_done:false};
-    
-    print!("The possible positions for the rook at {} are {:?}", pos_letter, possible_positions);
+    game.play();
 
     Ok(())
 }
@@ -53,21 +41,89 @@ struct Game{
     game_done: bool,
 }
 
+trait ChessGame {
+    fn play(&mut self);
+    fn play_move(&mut self, initial_position: u8, final_position:u8) -> bool;
+}
+
 impl Game {
     fn init() -> Game {
         let mut board = Board::init();
         board.update_hashmap();
-        Game { white_turn: true, moves_done: vec![], board: board, game_done: false }
+        Game { white_turn: true, moves_done: vec![], board, game_done: false }
     }
+}
 
-    fn play() -> () {
-        loop {
+impl ChessGame for Game{
+
+    fn play(&mut self) {
+        while !self.game_done {
+            let mut i_position_string= String::new();
+            let mut f_position_string= String::new();
+
+            self.board.show();
+
+            if self.white_turn {
+                println!("WHITE TURN");
+            } else {
+                println!("BLACK TURN");
+            }
+
+            println!("Piece initial pos: ");
+            io::stdin()
+                .read_line(&mut i_position_string)
+                .expect("Failed to read line");
+
+            i_position_string = i_position_string.trim().to_string();
+            let i_position = position_helper::letter_to_position_byte(i_position_string);
+
             
+            println!("Move: ");
+            io::stdin()
+                .read_line(&mut f_position_string)
+                .expect("Failed to read line");
+
+            f_position_string = f_position_string.trim().to_string();
+            let f_position = position_helper::letter_to_position_byte(f_position_string);
+            let move_was_valid = self.play_move(i_position, f_position);
+
+            //End of turn
+            if move_was_valid {
+                self.white_turn = !self.white_turn;
+            }
         }
     }
 
-    fn play_move(self, piece_to_move: u8, final_position: u8) {
-        
+    fn play_move(&mut self, initial_position: u8, final_position: u8) -> bool {
+        let piece_opt = self.board.pieces.get(&initial_position);
+
+        if let Some(piece_bits)  =  piece_opt {
+            let piece = Piece::init_from_binary(*piece_bits);
+            let possible_moves = piece.possible_moves(initial_position, &self.board);
+            if possible_moves.contains(&final_position){
+                // Take piece
+                let final_position_index = position_helper::position_byte_to_index(final_position);
+                let taken_piece = self.board.state.get(final_position_index as usize);
+                let t_piece = taken_piece.unwrap_or(&0u8);
+                if *t_piece != 0 {
+                    //TODO: store the piece taken and give rewards
+                    if Piece::init_from_binary(*taken_piece.unwrap()).class == PieceType::King {
+                        self.game_done = true;
+                        println!("GG wp");
+                    }
+                }
+                // update the board  
+                self.board.state[final_position_index as usize] = piece.binary;
+                self.board.state[position_helper::position_byte_to_index(initial_position)] = 0;
+
+                self.board.update_hashmap();
+                return true;
+            }
+            else {
+                println!("This move is not valid");
+            }
+        } 
+        return false;
     }
 }
 
@@ -79,7 +135,7 @@ struct Piece {
     class: PieceType,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum PieceType {
     Pawn,
     Rook,
@@ -97,7 +153,6 @@ impl Piece {
         if self.is_white {
             possible_positions.push(position - 16);
 
-            println!("The row of the pawn is identified as {}", position_helper::get_row(position));
             if position_helper::get_row(position) == 6 { 
                 possible_positions.push(position - 32);
             }
@@ -110,21 +165,26 @@ impl Piece {
                 possible_positions.push(position + 32);
             }
         }
+        //Handle taking pieces
+        if self.is_white {
+            let diagonal_right = position - ROW + COL;
+            let diagonal_left = position - ROW - COL;
+            if board.pieces.get(&diagonal_left.clone()).is_some() {
+                possible_positions.push(diagonal_left.clone()); 
+            } 
+            if board.pieces.get(&diagonal_right.clone()).is_some() {
+                possible_positions.push(diagonal_right.clone()); 
+            }
+        }
 
         let mut final_positions = Vec::new();
         for pos in possible_positions {
-            println!("{}", pos);
             if position_helper::validate_position(pos) {
                 final_positions.push(pos);
             }
         }
 
-        //Handle taking pieces
-        let piece1 = board.pieces.get(&(position + ROW + COL));
-        let _piece2 = board.pieces.get(&(position + ROW - COL));
-        if piece1.is_some() { 
-            println!("There do be a piece here");    
-        }
+        
         
         final_positions
     }
@@ -182,80 +242,85 @@ impl Piece {
         return final_positions;
     }
 
-    fn queen_moves(self, position:u8, board: Board) -> Vec<u8> {
-        let mut possible_positions = Vec::<u8>::new();
+    const BOARD_SIZE: u8 = 8;
+    
+    fn queen_moves(self, position: u8, _board: Board) -> Vec<u8> {
         let row = position_helper::get_row(position);
         let col = position_helper::get_col(position);
-
-        for i in 1..8 {
+    
+        (1..8).filter_map(|i| {
+            let mut moves = Vec::new();
+    
+            // Bishop-like moves
             if col + i < 8 {
                 if row + i < 8 {
-                    possible_positions.push(position + i + ROW*i);
-                    possible_positions.push(position + ROW*i);
+                    moves.push(position + i + ROW * i);
                 }
                 if i <= row {
-                    possible_positions.push(position + i - ROW*i);
-                    possible_positions.push(position - ROW*i);
+                    moves.push(position + i - ROW * i);
                 }
-                possible_positions.push(position + i);
             }
+    
             if i <= col {
                 if row + i < 8 {
-                    possible_positions.push(position - i + ROW*i);
-                    possible_positions.push(position - ROW*i);
+                    moves.push(position - i + ROW * i);
                 }
                 if i <= row {
-                    possible_positions.push(position - i - ROW*i);
-                    possible_positions.push(position - ROW*i);
+                    moves.push(position - i - ROW * i);
                 }
-                possible_positions.push(position - i);
             }
-        }
-
-        let mut final_positions = Vec::new();
-        for pos in possible_positions {
-            if position_helper::validate_position(pos) {
-                final_positions.push(pos);
+    
+            // Rook-like moves
+            if col + i < 8 {
+                moves.push(position + i);
             }
-        }
-
-        return final_positions;
-
+            if i <= col {
+                moves.push(position - i);
+            }
+            if row + i < 8 {
+                moves.push(position + ROW * i);
+            }
+            if i <= row {
+                moves.push(position - ROW * i);
+            }
+    
+            Some(moves)
+        })
+        .flatten()
+        .filter(|&pos| position_helper::validate_position(pos))
+        .collect()
     }
 
-    fn bishop_moves(self, position:u8, board: Board) -> Vec<u8> {
-
-        let mut possible_positions = Vec::<u8>::new();
+    fn bishop_moves(self, position: u8, _board: Board) -> Vec<u8> {
         let row = position_helper::get_row(position);
         let col = position_helper::get_col(position);
-
-        for i in 1..8 {
-            if col + i < 8 {
+    
+        (1..8).filter_map(|i| {
+            let mut moves = Vec::new();
+            
+            if col + i < 8{
                 if row + i < 8 {
-                    possible_positions.push(position + i + ROW*i);
+                    moves.push(position + i + ROW * i);
                 }
                 if i <= row {
-                    possible_positions.push(position + i - ROW*i);
+                    moves.push(position + i - ROW * i);
                 }
             }
+            
             if i <= col {
                 if row + i < 8 {
-                    possible_positions.push(position - i + ROW*i);
+                    moves.push(position - i + ROW * i);
                 }
                 if i <= row {
-                    possible_positions.push(position - i - ROW*i);
+                    moves.push(position - i - ROW * i);
                 }
             }
-        }
-
-        let mut final_positions = Vec::new();
-        for pos in possible_positions {
-            if position_helper::validate_position(pos) {
-                final_positions.push(pos);
-            }
-        }
-
-        return final_positions;
+            
+            Some(moves)
+        })
+        .flatten()
+        .filter(|&pos| position_helper::validate_position(pos))
+        .collect()
     }
 
      fn knight_moves(self, position:u8, board: Board) -> Vec<u8> {
@@ -283,9 +348,9 @@ impl Piece {
 }
 
 impl BasicPiece for Piece {
-    fn is_move_valid(&self, _position:u8, _board: Board) -> bool {
-        //TODO: Is this still required? if so implement
-        true
+    fn is_move_valid(&self, position:u8, board: Board) -> bool {
+        //TODO: implement this
+        return true;
     }
 
     fn possible_moves(&self, position:u8, board:&Board) -> Vec<u8> {
