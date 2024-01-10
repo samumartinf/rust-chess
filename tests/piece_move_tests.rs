@@ -143,6 +143,26 @@ fn test_bishop_moves_empty_board() {
 }
 
 #[test]
+fn test_bishop_moves_starting_board() {
+    let mut board = Board::init();
+    board.update_hashmap();
+    let pos_string: String = String::from("c1");
+    let position = position_helper::letter_to_position_byte(pos_string.clone());
+    let bishop = Piece::init_from_binary(PIECE_BIT + WHITE_BIT + BISHOP);
+    let possible_positions: HashSet<String> = bishop
+        .possible_moves(position, &board)
+        .iter()
+        .map(|x| position_helper::position_byte_to_letter(*x))
+        .collect();
+    println!(
+        "The positions from {} for the bishop are: {:?}",
+        pos_string, possible_positions
+    );
+    // We should have no possible moves at the beginning
+    assert_eq!(possible_positions.len(), 0);
+}
+
+#[test]
 fn test_queen_moves_empty_board() {
     let board = Board::init();
     let pos_string: String = String::from("d4");

@@ -294,28 +294,48 @@ impl Piece {
             .collect()
     }
 
-    fn bishop_moves(self, position: u8, _board: Board) -> Vec<u8> {
+    fn bishop_moves(self, position: u8, board: Board) -> Vec<u8> {
         let row = position_helper::get_row(position);
         let col = position_helper::get_col(position);
+        let mut blocked_up_left = false;
+        let mut blocked_down_left = false;
+        let mut blocked_up_right = false;
+        let mut blocked_down_right = false;
 
         (1..8)
             .filter_map(|i| {
                 let mut moves = Vec::new();
 
                 if col + i < 8 {
-                    if row + i < 8 {
+                    if row + i < 8 && !blocked_down_right {
+                        let position_to_check = position + i + ROW * i;
+                        let piece_retrieved = board.pieces.get(&position_to_check);
+
+                        blocked_down_right = piece_retrieved.is_some();
                         moves.push(position + i + ROW * i);
                     }
-                    if i <= row {
+                    if i <= row && !blocked_up_right {
+                        let position_to_check = position + i - ROW * i;
+                        let piece_retrieved = board.pieces.get(&position_to_check);
+
+                        blocked_up_right = piece_retrieved.is_some();
                         moves.push(position + i - ROW * i);
                     }
                 }
 
                 if i <= col {
-                    if row + i < 8 {
+                    if row + i < 8 && !blocked_down_left {
+                        let position_to_check = position - i + ROW * i;
+                        let piece_retrieved = board.pieces.get(&position_to_check);
+
+                        blocked_down_left= piece_retrieved.is_some();
                         moves.push(position - i + ROW * i);
                     }
-                    if i <= row {
+                    if i <= row && !blocked_up_left{
+                        let position_to_check = position - i - ROW * i;
+                        let piece_retrieved = board.pieces.get(&position_to_check);
+
+                        blocked_up_left = piece_retrieved.is_some();
                         moves.push(position - i - ROW * i);
                     }
                 }
@@ -323,7 +343,7 @@ impl Piece {
                 Some(moves)
             })
             .flatten()
-            .filter(|&pos| position_helper::validate_position(pos))
+            .filter(|&pos| position_helper::is_position_valid(pos, &board, self.is_white))
             .collect()
     }
 
