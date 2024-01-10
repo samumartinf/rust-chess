@@ -246,52 +246,16 @@ impl Piece {
         return final_positions;
     }
 
-    fn queen_moves(self, position: u8, _board: Board) -> Vec<u8> {
+    fn queen_moves(self, position: u8, board: Board) -> Vec<u8> {
         let row = position_helper::get_row(position);
         let col = position_helper::get_col(position);
 
-        (1..8)
-            .filter_map(|i| {
-                let mut moves = Vec::new();
+        let mut queen_positions = self.clone().rook_moves(position, board.clone());
+        let mut bishop_positions = self.bishop_moves(position, board);
 
-                // Bishop-like moves
-                if col + i < 8 {
-                    if row + i < 8 {
-                        moves.push(position + i + ROW * i);
-                    }
-                    if i <= row {
-                        moves.push(position + i - ROW * i);
-                    }
-                }
+        queen_positions.append(&mut bishop_positions);
+        return queen_positions.to_vec();
 
-                if i <= col {
-                    if row + i < 8 {
-                        moves.push(position - i + ROW * i);
-                    }
-                    if i <= row {
-                        moves.push(position - i - ROW * i);
-                    }
-                }
-
-                // Rook-like moves
-                if col + i < 8 {
-                    moves.push(position + i);
-                }
-                if i <= col {
-                    moves.push(position - i);
-                }
-                if row + i < 8 {
-                    moves.push(position + ROW * i);
-                }
-                if i <= row {
-                    moves.push(position - ROW * i);
-                }
-
-                Some(moves)
-            })
-            .flatten()
-            .filter(|&pos| position_helper::validate_position(pos))
-            .collect()
     }
 
     fn bishop_moves(self, position: u8, board: Board) -> Vec<u8> {
