@@ -623,3 +623,12 @@ pub mod position_helper {
         return true;
     }
 }
+
+pub mod cherris_engine {
+    use crate::Game;
+
+    pub struct Engine {
+        game: Game,
+        
+    }
+}

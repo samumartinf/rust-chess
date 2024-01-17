@@ -1,5 +1,5 @@
 use color_eyre::eyre::Result;
-use Cherris::{self, ChessGame};
+use cherris::{self, ChessGame};
 
 
 // Instructions:
@@ -12,10 +12,10 @@ use Cherris::{self, ChessGame};
 */
 fn main() -> Result<()>{
     color_eyre::install()?;
-    let mut board: Cherris::Board = Cherris::Board::init();
+    let mut board: cherris::Board = cherris::Board::init();
     board.update_hashmap();
 
-    let mut game = Cherris::Game::init();
+    let mut game = cherris::Game::init();
 
     game.play();
 

@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use Cherris::*;
+use cherris::*;
 const PIECE_BIT: u8 = 128u8;
 const WHITE_BIT: u8 = 64u8;
 const PAWN_BIT: u8 = 8u8;
